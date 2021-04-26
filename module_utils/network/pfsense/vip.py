@@ -91,12 +91,14 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
         obj = dict()
 
-        if params['interface'] not in self.interfaces:
-            obj['interface'] = self.pfsense.get_interface_port_by_display_name(params['interface'])
-            if obj['interface'] is None:
-                obj['interface'] = self.pfsense.get_interface_port(params['interface'])
-        else:
-            obj['interface'] = params['interface']
+        # if params['interface'] not in self.interfaces:
+        #     obj['interface'] = self.pfsense.get_interface_port_by_display_name(params['interface'])
+        #     if obj['interface'] is None:
+        #         obj['interface'] = self.pfsense.get_interface_port(params['interface'])
+        # else:
+        #     obj['interface'] = params['interface']
+
+        obj['interface'] = params['interface']
 
         if params['state'] == 'present':
             if params['mode'] == 'carp':
@@ -109,6 +111,8 @@ class PFSenseVIPModule(PFSenseModuleBase):
             obj['type'] = str(params['type'])
 
             obj['descr'] = params['descr']
+
+        obj['mode'] = str(params['mode'])
 
         return obj
 
@@ -157,7 +161,11 @@ class PFSenseVIPModule(PFSenseModuleBase):
         cmd += "$vip['subnet'] = '{0}';\n".format(self.obj['subnet'])
         cmd += "$vip['subnet_bits'] = '{0}';\n".format(self.obj['subnet_bits'])
         cmd += "$vip['descr'] = '{0}';\n".format(self.obj['descr'])
-        cmd += "$vipif = interface_vips_configure($vip);\n"
+        cmd += "$vip['type'] = '{0}';\n".format(self.obj['type'])
+        if self.params['mode'] == 'ipalias':
+            cmd += "interface_ipalias_configure($vip);\n"
+        elif self.params['mode'] == 'carp':
+            cmd += "$vipif = interface_carp_configure($vip);\n"
 
         # cmd += "if ($vipif == NULL || $vipif != $vlan['vlanif']) {pfSense_interface_destroy('%s');} else {\n" % (self.obj['vlanif'])
 
@@ -202,11 +210,12 @@ class PFSenseVIPModule(PFSenseModuleBase):
     #
     def get_update_cmds(self):
         """ build and return php commands to setup interfaces """
-        cmd = 'require_once("filter.inc");\n'
+        # cmd = 'require_once("filter.inc");\n'
+        cmd = ''
         if self.setup_vip_cmds != "":
-            cmd += 'require_once("interfaces.inc");\n'
+            # cmd += 'require_once("interfaces.inc");\n'
             cmd += self.setup_vip_cmds
-        cmd += "if (filter_configure() == 0) { clear_subsystem_dirty('filter'); }"
+        # cmd += "if (filter_configure() == 0) { clear_subsystem_dirty('filter'); }"
         return cmd
 
     def _update(self):
@@ -218,15 +227,17 @@ class PFSenseVIPModule(PFSenseModuleBase):
     #
     def _get_obj_name(self):
         """ return obj's name """
-        return "'{0}.{1}'".format(self.obj['interface'], self.obj['tag'])
+        return "'{0}.{1}.{2}'".format(self.obj['interface'], self.obj['subnet'], self.obj['mode'])
 
     def _log_fields(self, before=None):
         """ generate pseudo-CLI command fields parameters to create an obj """
         values = ''
         if before is None:
             values += self.format_cli_field(self.obj, 'descr')
-            values += self.format_cli_field(self.obj, 'pcp', fname='priority')
+            values += self.format_cli_field(self.obj, 'subnet', fname='address')
+            values += self.format_cli_field(self.obj, 'mode', fname='mode')
         else:
-            values += self.format_updated_cli_field(self.obj, before, 'pcp', add_comma=(values), fname='priority')
+            values += self.format_updated_cli_field(self.obj, before, 'mode', add_comma=(values), fname='mode')
+            values += self.format_updated_cli_field(self.obj, before, 'subnet', add_comma=(values), fname='address')
             values += self.format_updated_cli_field(self.obj, before, 'descr', add_comma=(values))
         return values
