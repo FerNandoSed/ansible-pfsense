@@ -468,14 +468,16 @@ class PFSenseModule(object):
 
         return None
 
-    def find_vip(self, interface, subnet):
-        """ return vlan elt if found """
+    def find_vip(self, interface, mode, descr):
+        """ return virtualip elt if found """
+
         if self.virtualip is None:
             self.virtualip = self.get_element('virtualip')
 
         if self.virtualip is not None:
             for vip in self.virtualip:
-                if vip.find('interface').text == interface and vip.find('subnet').text == subnet:
+                print(vip)
+                if vip.find('interface').text == interface and vip.find('descr').text == descr and vip.find('mode').text == mode:
                     return vip
 
     def _create_gw_elt(self, name, interface_id, protocol):

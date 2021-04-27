@@ -40,11 +40,11 @@ class PFSenseVIPModule(PFSenseModuleBase):
     def __init__(self, module, pfsense=None):
         super(PFSenseVIPModule, self).__init__(module, pfsense)
         self.name = "pfsense_vip"
-        self.root_elt = self.pfsense.get_element('vips')
+        self.root_elt = self.pfsense.get_element('virtualip')
         self.obj = dict()
 
         if self.root_elt is None:
-            self.root_elt = self.pfsense.new_element('vips')
+            self.root_elt = self.pfsense.new_element('virtualip')
             self.pfsense.root.append(self.root_elt)
 
         self.setup_vip_cmds = ""
@@ -100,17 +100,16 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
         obj['interface'] = params['interface']
 
-        if params['state'] == 'present':
-            if params['mode'] == 'carp':
-                obj['vhid'] = str(params['vhid'])
-                obj['advskew'] = str(params['advskew'])
-                obj['advbase'] = str(params['advbase'])
-                obj['password'] = str(params['password'])
-            obj['subnet'] = str(params['subnet'])
-            obj['subnet_bits'] = str(params['subnet_bits'])
-            obj['type'] = str(params['type'])
+        if params['mode'] == 'carp':
+            obj['vhid'] = str(params['vhid'])
+            obj['advskew'] = str(params['advskew'])
+            obj['advbase'] = str(params['advbase'])
+            obj['password'] = str(params['password'])
+        obj['subnet'] = str(params['subnet'])
+        obj['subnet_bits'] = str(params['subnet_bits'])
+        obj['type'] = str(params['type'])
 
-            obj['descr'] = params['descr']
+        obj['descr'] = params['descr']
 
         obj['mode'] = str(params['mode'])
 
@@ -153,6 +152,7 @@ class PFSenseVIPModule(PFSenseModuleBase):
         cmd = "$vip = array();\n"
         cmd += "$vip['interface'] = '{0}';\n".format(self.obj['interface'])
         cmd += "$vip['mode'] = '{0}';\n".format(self.obj['mode'])
+        cmd += "$vip['uniqid'] = '{0}';\n".format(self.obj['uniqid'])
         if self.params['mode'] == 'carp':
             cmd += "$vip['vhid'] = '{0}';\n".format(self.obj['vhid'])
             cmd += "$vip['advskew'] = '{0}';\n".format(self.obj['advskew'])
@@ -195,11 +195,12 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
     def _create_target(self):
         """ create the XML target_elt """
+        self.obj['uniqid'] = self.pfsense.uniqid()
         return self.pfsense.new_element('vip')
 
     def _find_target(self):
         """ find the XML target_elt """
-        return self.pfsense.find_vip(self.obj['interface'], self.obj['subnet'])
+        return self.pfsense.find_vip(self.obj['interface'], self.obj['mode'], self.obj['descr'])
 
     def _pre_remove_target_elt(self):
         """ processing before removing elt """
@@ -209,13 +210,10 @@ class PFSenseVIPModule(PFSenseModuleBase):
     # run
     #
     def get_update_cmds(self):
-        """ build and return php commands to setup interfaces """
-        # cmd = 'require_once("filter.inc");\n'
+        """ build and return php commands to setup virtualip """
         cmd = ''
         if self.setup_vip_cmds != "":
-            # cmd += 'require_once("interfaces.inc");\n'
             cmd += self.setup_vip_cmds
-        # cmd += "if (filter_configure() == 0) { clear_subsystem_dirty('filter'); }"
         return cmd
 
     def _update(self):
