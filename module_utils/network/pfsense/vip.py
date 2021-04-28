@@ -49,39 +49,6 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
         self.setup_vip_cmds = ""
 
-        # get physical interfaces on which vips can be set
-        get_interface_cmd = (
-            'require_once("/etc/inc/interfaces.inc");'
-            '$portlist = get_interface_list();'
-            '$lagglist = get_lagg_interface_list();'
-            '$portlist = array_merge($portlist, $lagglist);'
-            'foreach ($lagglist as $laggif => $lagg) {'
-            "    $laggmembers = explode(',', $lagg['members']);"
-            '    foreach ($laggmembers as $lagm)'
-            '        if (isset($portlist[$lagm]))'
-            '            unset($portlist[$lagm]);'
-            '}')
-
-        if self.pfsense.is_at_least_2_5_0():
-            get_interface_cmd += (
-                '$list = array();'
-                'foreach ($portlist as $ifn => $ifinfo) {'
-                '  $list[$ifn] = $ifn . " (" . $ifinfo["mac"] . ")";'
-                '  $iface = convert_real_interface_to_friendly_interface_name($ifn);'
-                '  if (isset($iface) && strlen($iface) > 0)'
-                '    $list[$ifn] .= " - $iface";'
-                '}'
-                'echo json_encode($list);')
-        else:
-            get_interface_cmd += (
-                '$list = array();'
-                'foreach ($portlist as $ifn => $ifinfo)'
-                '   if (is_jumbo_capable($ifn))'
-                '       array_push($list, $ifn);'
-                'echo json_encode($list);')
-
-        self.interfaces = self.pfsense.php(get_interface_cmd)
-
     ##############################
     # params processing
     #
@@ -90,13 +57,6 @@ class PFSenseVIPModule(PFSenseModuleBase):
         params = self.params
 
         obj = dict()
-
-        # if params['interface'] not in self.interfaces:
-        #     obj['interface'] = self.pfsense.get_interface_port_by_display_name(params['interface'])
-        #     if obj['interface'] is None:
-        #         obj['interface'] = self.pfsense.get_interface_port(params['interface'])
-        # else:
-        #     obj['interface'] = params['interface']
 
         obj['interface'] = params['interface']
 
@@ -167,15 +127,6 @@ class PFSenseVIPModule(PFSenseModuleBase):
         elif self.params['mode'] == 'carp':
             cmd += "$vipif = interface_carp_configure($vip);\n"
 
-        # cmd += "if ($vipif == NULL || $vipif != $vlan['vlanif']) {pfSense_interface_destroy('%s');} else {\n" % (self.obj['vlanif'])
-
-        # # if vlan is assigned to an interface, configuration needs to be applied again
-        # interface = self.pfsense.get_interface_by_port('{0}.{1}'.format(self.obj['interface'], self.obj['tag']))
-        # if interface is not None:
-        #     cmd += "interface_configure('{0}', true);\n".format(interface)
-
-        # cmd += '}\n'
-
         return cmd
 
     def _copy_and_add_target(self):
@@ -185,10 +136,14 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
     def _copy_and_update_target(self):
         """ update the XML target_elt """
-        old_vipif = self.target_elt.find('vipif').text
-        (before, changed) = super(PFSenseVIPModule, self)._copy_and_update_target()
+        before = self.pfsense.element_to_dict(self.target_elt)
+        changed = self.pfsense.copy_dict_to_element(self.obj, self.target_elt)
+        if self._remove_deleted_params():
+            changed = True
+
         if changed:
-            self.setup_vip_cmds += "pfSense_interface_destroy('{0}');\n".format(old_vipif)
+            self.obj['uniqid'] = self.target_elt.find('uniqid').text
+            self._remove_target_elt()
             self.setup_vip_cmds += self._cmd_create()
 
         return (before, changed)
@@ -204,7 +159,8 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
     def _pre_remove_target_elt(self):
         """ processing before removing elt """
-        pass
+        port = self.pfsense.get_interface_port(self.obj['interface'])
+        self.pfsense.phpshell("! ifconfig {0} inet {1} delete".format(port,self.obj['subnet']))
 
     ##############################
     # run
