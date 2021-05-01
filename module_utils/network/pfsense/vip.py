@@ -10,11 +10,11 @@ from ansible.module_utils.network.pfsense.module_base import PFSenseModuleBase
 VIP_ARGUMENT_SPEC = dict(
     state=dict(default='present', choices=['present', 'absent']),
     interface=dict(required=True, type='str'),
-    vhid=dict(default=None, type='int'),
-    advskew=dict(default=None, type='int'),
-    advbase=dict(default=None, type='int'),
+    vhid=dict(type='int'),
+    advskew=dict(default=0, type='int'),
+    advbase=dict(default=1, type='int'),
     mode=dict(required=True, choices=['ipalias','carp']),
-    password=dict(default=None, type='str'),
+    password=dict(type='str'),
     subnet_bits=dict(default=32, type='int'),
     subnet=dict(required=True, type='str'),
     type=dict(default='single', choices=['single','network']),
@@ -89,20 +89,22 @@ class PFSenseVIPModule(PFSenseModuleBase):
             if interface is None or interface not in self.interfaces:
                 self.module.fail_json(msg='VIPs can\'t be set on interface {0}'.format(params['interface']))
 
-        # check vhid
-        if params['vhid']:
-            if params['vhid'] < 1 or params['vhid'] > 255:
-                self.module.fail_json(msg='vhid must be between 1 and 255')
-        
-        # check advskew
-        if params['advskew']:
-            if params['advskew'] < 0 or params['advskew'] > 254:
-                self.module.fail_json(msg='advskew must be between 1 and 254')
-        
-        # check advbase
-        if params['advbase']:
-            if params['advbase'] < 1 or params['advbase'] > 254:
-                self.module.fail_json(msg='advbase must be between 1 and 254')
+        # check CARP parameters
+        if params['mode'] == 'carp':
+            # check vhid
+            if params['vhid']:
+                if params['vhid'] < 1 or params['vhid'] > 255:
+                    self.module.fail_json(msg='vhid must be between 1 and 255')
+            
+            # check advskew
+            if params['advskew']:
+                if params['advskew'] < 0 or params['advskew'] > 254:
+                    self.module.fail_json(msg='advskew must be between 0 and 254')
+            
+            # check advbase
+            if params['advbase']:
+                if params['advbase'] < 1 or params['advbase'] > 254:
+                    self.module.fail_json(msg='advbase must be between 1 and 254')
 
     ##############################
     # XML processing

@@ -22,43 +22,73 @@ description:
   - Manage pfSense virtual IPs
 notes:
 options:
-  vlan_id:
-    description: The vlan tag. Must be between 1 and 4094.
-    required: true
-    type: int
+  descr:
+    description: The description of the virtual IP.
+    default: null
+    type: str
   interface:
     description: The interface on which to declare the vip. Friendly name (assignments) can be used.
     required: true
     type: str
-  priority:
-    description: 802.1Q VLAN Priority code point. Must be between 0 and 7.
-    required: false
-    type: int
-  descr:
-    description: The description of the vlan
-    default: null
+  mode:
+    description: Mode of virtual IP.
+    choices: ["ipalias","carp"]
+    required: true
     type: str
   state:
-    description: State in which to leave the vlan
+    description: State in which to leave the virtual IP.
     choices: [ "present", "absent" ]
     default: present
+    type: str
+  subnet:
+    description: Declares the IP or subnet which the virtual IP will use.
+    required: true
+    type: str
+  subnet_bits:
+    description: Declares the network mask of subnet.
+    default: 32
+    type: int
+  type:
+    description: Declares if the virtual IP is a subnet range or a single IP.
+    choices: ['single','network']
+    default: 'single'
+    type: str
+  advbase:
+    description: Interval (seconds) for carp advertising.
+    type: int
+    default: 1
+  advskew:
+    description: Interval (nth of a second) for skew in carp advertising.
+    type: int
+    default: 0
+  vhid:
+    description: Virtual IP ID for CARP.
+    type: int
+  password:
+    description: Password for CARP virtual IP.
     type: str
 """
 
 EXAMPLES = """
-- name: Add voice vlan
-  pfsense_vlan:
-    interface: mvneta0
-    vlan_id: 100
-    descr: voice
-    priority: 5
-    state: present
+- name: Add CARP virtual IP
+  pfsense_vip:
+    interface: wan
+    mode: carp
+    subnet_bits: 24
+    subnet: 10.240.241.2
+    descr: testcarp
+    vhid: 150
+    advskew: 0
+    advbase: 1
+    password: verysecretpassword
 
-- name: Remove voice vlan
+- name: Remove 'testcarp' virtual IP
   pfsense_vlan:
-    interface: mvneta0
-    vlan_id: 100
-    state: absent
+    interface: wan
+    mode: carp
+    subnet_bits: 24
+    subnet: 10.240.241.2
+    descr: testcarp
 """
 
 RETURN = """
