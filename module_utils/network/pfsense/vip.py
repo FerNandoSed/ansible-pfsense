@@ -49,6 +49,39 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
         self.setup_vip_cmds = ""
 
+        # get physical interfaces on which vips can be set
+        get_interface_cmd = (
+            'require_once("/etc/inc/interfaces.inc");'
+            '$portlist = get_interface_list();'
+            '$lagglist = get_lagg_interface_list();'
+            '$portlist = array_merge($portlist, $lagglist);'
+            'foreach ($lagglist as $laggif => $lagg) {'
+            "    $laggmembers = explode(',', $lagg['members']);"
+            '    foreach ($laggmembers as $lagm)'
+            '        if (isset($portlist[$lagm]))'
+            '            unset($portlist[$lagm]);'
+            '}')
+
+        if self.pfsense.is_at_least_2_5_0():
+            get_interface_cmd += (
+                '$list = array();'
+                'foreach ($portlist as $ifn => $ifinfo) {'
+                '  $list[$ifn] = $ifn . " (" . $ifinfo["mac"] . ")";'
+                '  $iface = convert_real_interface_to_friendly_interface_name($ifn);'
+                '  if (isset($iface) && strlen($iface) > 0)'
+                '    $list[$ifn] .= " - $iface";'
+                '}'
+                'echo json_encode($list);')
+        else:
+            get_interface_cmd += (
+                '$list = array();'
+                'foreach ($portlist as $ifn => $ifinfo)'
+                '   if (is_jumbo_capable($ifn))'
+                '       array_push($list, $ifn);'
+                'echo json_encode($list);')
+
+        self.interfaces = self.pfsense.php(get_interface_cmd)
+
     ##############################
     # params processing
     #
@@ -71,7 +104,7 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
         obj['descr'] = params['descr']
 
-        obj['mode'] = str(params['mode'])
+        obj['mode'] = params['mode']
 
         return obj
 
@@ -80,55 +113,59 @@ class PFSenseVIPModule(PFSenseModuleBase):
         params = self.params
 
         # check interface
-        if params['interface'] not in self.interfaces:
+        if params['interface'] not in self.interfaces and len(self.interfaces) > 0:
             # check with assign or friendly name
             interface = self.pfsense.get_interface_port_by_display_name(params['interface'])
             if interface is None:
                 interface = self.pfsense.get_interface_port(params['interface'])
 
             if interface is None or interface not in self.interfaces:
-                self.module.fail_json(msg='VIPs can\'t be set on interface {0}'.format(params['interface']))
+                self.module.fail_json(msg='VIPs can\'t be set on interface {0}. btw, interfaces: {1}'.format(params['interface'], self.interfaces))
 
         # check CARP parameters
         if params['mode'] == 'carp':
             # check vhid
-            if params['vhid']:
-                if params['vhid'] < 1 or params['vhid'] > 255:
-                    self.module.fail_json(msg='vhid must be between 1 and 255')
+            if params['vhid'] < 1 or params['vhid'] > 255:
+                self.module.fail_json(msg='vhid must be between 1 and 255')
             
             # check advskew
-            if params['advskew']:
-                if params['advskew'] < 0 or params['advskew'] > 254:
-                    self.module.fail_json(msg='advskew must be between 0 and 254')
+            if params['advskew'] < 0 or params['advskew'] > 254:
+                self.module.fail_json(msg='advskew must be between 0 and 254')
             
             # check advbase
-            if params['advbase']:
-                if params['advbase'] < 1 or params['advbase'] > 254:
-                    self.module.fail_json(msg='advbase must be between 1 and 254')
+            if params['advbase'] < 1 or params['advbase'] > 254:
+                self.module.fail_json(msg='advbase must be between 1 and 254')
 
     ##############################
     # XML processing
     #
+
+    def _create_vip_aray(self):
+        """ Creates $vip array for creating/removing/editing VIPs """
+        vip_array_def = "$vip = array();\n"
+        vip_array_def += "$vip['interface'] = '{0}';\n".format(self.obj['interface'])
+        vip_array_def += "$vip['mode'] = '{0}';\n".format(self.obj['mode'])
+        if self.params['mode'] == 'carp':
+            vip_array_def += "$vip['vhid'] = '{0}';\n".format(self.obj['vhid'])
+            vip_array_def += "$vip['advskew'] = '{0}';\n".format(self.obj['advskew'])
+            vip_array_def += "$vip['advbase'] = '{0}';\n".format(self.obj['advbase'])
+            vip_array_def += "$vip['password'] = '{0}';\n".format(self.obj['password'])
+        vip_array_def += "$vip['subnet'] = '{0}';\n".format(self.obj['subnet'])
+        vip_array_def += "$vip['subnet_bits'] = '{0}';\n".format(self.obj['subnet_bits'])
+        vip_array_def += "$vip['descr'] = '{0}';\n".format(self.obj['descr'])
+        vip_array_def += "$vip['type'] = '{0}';\n".format(self.obj['type'])
+
+        return vip_array_def
+
     def _cmd_create(self):
         """ return the php shell to create the virtual IP """
-        cmd = "$vip = array();\n"
-        cmd += "$vip['interface'] = '{0}';\n".format(self.obj['interface'])
-        cmd += "$vip['mode'] = '{0}';\n".format(self.obj['mode'])
+        cmd = self._create_vip_aray()
         cmd += "$vip['uniqid'] = '{0}';\n".format(self.obj['uniqid'])
-        if self.params['mode'] == 'carp':
-            cmd += "$vip['vhid'] = '{0}';\n".format(self.obj['vhid'])
-            cmd += "$vip['advskew'] = '{0}';\n".format(self.obj['advskew'])
-            cmd += "$vip['advbase'] = '{0}';\n".format(self.obj['advbase'])
-            cmd += "$vip['password'] = '{0}';\n".format(self.obj['password'])
-        cmd += "$vip['subnet'] = '{0}';\n".format(self.obj['subnet'])
-        cmd += "$vip['subnet_bits'] = '{0}';\n".format(self.obj['subnet_bits'])
-        cmd += "$vip['descr'] = '{0}';\n".format(self.obj['descr'])
-        cmd += "$vip['type'] = '{0}';\n".format(self.obj['type'])
         if self.params['mode'] == 'ipalias':
             cmd += "interface_ipalias_configure($vip);\n"
         elif self.params['mode'] == 'carp':
             cmd += "$vipif = interface_carp_configure($vip);\n"
-
+            cmd += "if (!get_carp_status()) { set_single_sysctl('net.inet.carp.allow', '1'); }\n"
         return cmd
 
     def _copy_and_add_target(self):
@@ -146,6 +183,8 @@ class PFSenseVIPModule(PFSenseModuleBase):
         if changed:
             self.obj['uniqid'] = self.target_elt.find('uniqid').text
             self._remove_target_elt()
+            self.setup_vip_cmds += self._create_vip_aray()
+            self.setup_vip_cmds += "interface_vip_bring_down($vip);"
             self.setup_vip_cmds += self._cmd_create()
 
         return (before, changed)
@@ -157,12 +196,13 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
     def _find_target(self):
         """ find the XML target_elt """
-        return self.pfsense.find_vip(self.obj['interface'], self.obj['mode'], self.obj['descr'])
+        return self.pfsense.find_vip(self.obj['interface'], self.obj['mode'], self.obj['descr'], self.obj['subnet'])
 
     def _pre_remove_target_elt(self):
         """ processing before removing elt """
-        port = self.pfsense.get_interface_port(self.obj['interface'])
-        self.pfsense.phpshell("! ifconfig {0} inet {1} delete".format(port,self.obj['subnet']))
+        cmd = self._create_vip_aray()
+        cmd += "interface_vip_bring_down($vip);"
+        self.pfsense.phpshell(cmd)
 
     ##############################
     # run
