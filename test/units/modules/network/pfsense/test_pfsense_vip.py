@@ -68,3 +68,9 @@ class TestPFSenseVIPModule(TestPFSenseModule):
         vip = dict(mode='ipalias', subnet='10.240.22.10', descr='', interface='wan', type='single')
         command = "create vip 'wan.10.240.22.10.ipalias', descr='', address='10.240.22.10', mode='ipalias'"
         self.do_module_test(vip, command=command)
+
+    def test_vip_create_carp(self):
+        """ test creation of a new vip """
+        vip = dict(mode='carp', subnet='10.240.23.10', descr='', interface='wan', type='single')
+        command = "create vip 'wan.10.240.23.10.carp', descr='', address='10.240.23.10', mode='carp'"
+        self.do_module_test(vip, command=command)
