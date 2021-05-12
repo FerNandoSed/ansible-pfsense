@@ -49,36 +49,28 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
         self.setup_vip_cmds = ""
 
-        # get physical interfaces on which vips can be set
+        # get interfaces on which vips can be set
+        # function build_if_list https://github.com/pfsense/pfsense/blob/master/src/usr/local/www/firewall_virtual_ip_edit.php
         get_interface_cmd = (
             'require_once("/etc/inc/interfaces.inc");'
-            '$portlist = get_interface_list();'
-            '$lagglist = get_lagg_interface_list();'
-            '$portlist = array_merge($portlist, $lagglist);'
-            'foreach ($lagglist as $laggif => $lagg) {'
-            "    $laggmembers = explode(',', $lagg['members']);"
-            '    foreach ($laggmembers as $lagm)'
-            '        if (isset($portlist[$lagm]))'
-            '            unset($portlist[$lagm]);'
-            '}')
+            '$list = array();'
+            '$interfaces = get_configured_interface_with_descr(true);'
+	        '$carplist = get_configured_vip_list("all", VIP_CARP);'
 
-        if self.pfsense.is_at_least_2_5_0():
-            get_interface_cmd += (
-                '$list = array();'
-                'foreach ($portlist as $ifn => $ifinfo) {'
-                '  $list[$ifn] = $ifn . " (" . $ifinfo["mac"] . ")";'
-                '  $iface = convert_real_interface_to_friendly_interface_name($ifn);'
-                '  if (isset($iface) && strlen($iface) > 0)'
-                '    $list[$ifn] .= " - $iface";'
-                '}'
-                'echo json_encode($list);')
-        else:
-            get_interface_cmd += (
-                '$list = array();'
-                'foreach ($portlist as $ifn => $ifinfo)'
-                '   if (is_jumbo_capable($ifn))'
-                '       array_push($list, $ifn);'
-                'echo json_encode($list);')
+	        'foreach ($carplist as $vipname => $address) {\n'
+            '$interfaces[$vipname] = $address;'
+		    '$interfaces[$vipname] .= " (";'
+		    'if (get_vip_descr($address)) {\n'
+			'$interfaces[$vipname] .= get_vip_descr($address);'
+		    '} else {\n'
+			'$vip = get_configured_vip($vipname);'
+			'$interfaces[$vipname] .= "vhid: {$vip["vhid"]}";'
+		    '}\n'
+		    '$interfaces[$vipname] .= ")";'
+	        '}\n'
+            '$interfaces["lo0"] = "Localhost";'
+            'echo json_encode($interfaces);'
+        )
 
         self.interfaces = self.pfsense.php(get_interface_cmd)
 
@@ -113,14 +105,16 @@ class PFSenseVIPModule(PFSenseModuleBase):
         params = self.params
 
         # check interface
-        if params['interface'] not in self.interfaces and len(self.interfaces) > 0:
-            # check with assign or friendly name
-            interface = self.pfsense.get_interface_port_by_display_name(params['interface'])
-            if interface is None:
-                interface = self.pfsense.get_interface_port(params['interface'])
-
-            if interface is None or interface not in self.interfaces:
+        if params['interface'] not in self.interfaces.keys():
+            if params['interface'].upper() not in self.interfaces.values():
+                # check with assign or friendly name
                 self.module.fail_json(msg='VIPs can\'t be set on interface {0}. btw, interfaces: {1}'.format(params['interface'], self.interfaces))
+            else:
+                # if interface is friendly name, get real interface name
+                for realname, friendlyname in self.interfaces.items():
+                    if params['interface'].upper() == friendlyname:
+                        self.params['interface'] = realname
+                        break
 
         # check CARP parameters
         if params['mode'] == 'carp':
