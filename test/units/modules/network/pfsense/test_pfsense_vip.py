@@ -7,6 +7,8 @@ __metaclass__ = type
 import sys
 import pytest
 
+from units.compat.mock import patch
+from tempfile import mkstemp
 from ansible.modules.network.pfsense import pfsense_vip
 from ansible.module_utils.network.pfsense.vip import PFSenseVIPModule
 from .pfsense_module import TestPFSenseModule
@@ -33,7 +35,7 @@ class TestPFSenseVIPModule(TestPFSenseModule):
     def get_target_elt(self, obj, absent=False):
         """ get the generated vip xml definition """
         elt_filter = {}
-        elt_filter['interface'] = obj['interface']
+        elt_filter['interface'] = self.unalias_interface(obj['interface'])
         elt_filter['subnet'] = obj['subnet']
         elt_filter['mode'] = obj['mode']
 
@@ -41,9 +43,6 @@ class TestPFSenseVIPModule(TestPFSenseModule):
 
     def check_target_elt(self, obj, target_elt):
         """ test the xml definition of virtual IP """
-
-        # checking interface
-        self.assert_xml_elt_equal(target_elt, 'interface', obj['interface'])
 
         # checking descr
         if 'descr' in obj:
@@ -60,17 +59,79 @@ class TestPFSenseVIPModule(TestPFSenseModule):
         # check type
         self.assert_xml_elt_equal(target_elt, 'type', obj['type'])
 
+    def setUp(self):
+        """ mocking up """
+        super(TestPFSenseVIPModule, self).setUp()
+
+        self.mock_parse = patch('ansible.module_utils.network.pfsense.pfsense.ET.parse')
+        self.parse = self.mock_parse.start()
+
+        self.mock_shutil_move = patch('ansible.module_utils.network.pfsense.pfsense.shutil.move')
+        self.shutil_move = self.mock_shutil_move.start()
+
+        self.mock_php = patch('ansible.module_utils.network.pfsense.pfsense.PFSenseModule.php')
+        self.php = self.mock_php.start()
+        self.php.return_value = {"wan":"WAN","lan":"LAN","opt1":"VPN","lo0":"Localhost"}
+
+        self.mock_phpshell = patch('ansible.module_utils.network.pfsense.pfsense.PFSenseModule.phpshell')
+        self.phpshell = self.mock_phpshell.start()
+        self.phpshell.return_value = (0, '', '')
+
+        self.mock_mkstemp = patch('ansible.module_utils.network.pfsense.pfsense.mkstemp')
+        self.mkstemp = self.mock_mkstemp.start()
+        self.mkstemp.return_value = mkstemp()
+        self.tmp_file = self.mkstemp.return_value[1]
+
+        self.mock_chmod = patch('ansible.module_utils.network.pfsense.pfsense.os.chmod')
+        self.chmod = self.mock_chmod.start()
+
+        self.mock_get_version = patch('ansible.module_utils.network.pfsense.pfsense.PFSenseModule.get_version')
+        self.get_version = self.mock_get_version.start()
+        self.get_version.return_value = "2.5.0"
+
+        self.maxDiff = None
+
     ##############
     # tests
     #
-    def test_vip_create(self):
-        """ test creation of a new vip """
+    def test_vip_create_ipalias(self):
+        """ test creation of a new vip, ipalias mode """
         vip = dict(mode='ipalias', subnet='10.240.22.10', descr='', interface='wan', type='single')
         command = "create vip 'wan.10.240.22.10.ipalias', descr='', address='10.240.22.10', mode='ipalias'"
         self.do_module_test(vip, command=command)
 
     def test_vip_create_carp(self):
-        """ test creation of a new vip """
-        vip = dict(mode='carp', subnet='10.240.23.10', descr='', interface='wan', type='single')
+        """ test creation of a new vip, carp mode """
+        vip = dict(mode='carp', subnet='10.240.23.10', descr='', interface='wan', type='single', vhid='200', advskew='0', advbase='1', password='verysecretpassword')
         command = "create vip 'wan.10.240.23.10.carp', descr='', address='10.240.23.10', mode='carp'"
         self.do_module_test(vip, command=command)
+
+    def test_vip_create_ipalias_friendly_interface(self):
+        """ test creation of a new vip, carp mode """
+        vip = dict(mode='ipalias', subnet='10.240.24.10', descr='', interface='vpn', type='single')
+        command = "create vip 'opt1.10.240.24.10.ipalias', descr='', address='10.240.24.10', mode='ipalias'"
+        self.do_module_test(vip, command=command)
+
+    def test_vip_delete_ipalias_unexistent(self):
+        """ test deletion of a vip, ipalias mode """
+        vip = dict(mode='ipalias', subnet='10.240.22.10', interface='wan', state='absent')
+        command = "delete vip 'wan.10.240.22.10.ipalias'"
+        self.do_module_test(vip, command=command, delete=True, changed=False)
+
+    def test_vip_delete_ipalias(self):
+        """ test deletion of a vip, ipalias mode """
+        vip = dict(mode='ipalias', subnet='10.10.20.30', interface='wan', state='absent')
+        command = "delete vip 'wan.10.10.20.30.ipalias'"
+        self.do_module_test(vip, command=command, delete=True)
+
+    def test_vip_delete_carp_unexistent(self):
+        """ test deletion of a vip, carp mode """
+        vip = dict(mode='carp', subnet='10.240.22.10', interface='wan', password='secretpassword', vhid='240', state='absent')
+        command = "delete vip 'wan.10.240.22.10.carp'"
+        self.do_module_test(vip, command=command, delete=True, changed=False)
+
+    def test_vip_delete_carp(self):
+        """ test deletion of a vip, carp mode """
+        vip = dict(mode='carp', subnet='10.240.22.12', interface='wan', password='secretpassword', vhid='240', state='absent')
+        command = "delete vip 'wan.10.240.22.12.carp'"
+        self.do_module_test(vip, command=command, delete=True)
