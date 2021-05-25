@@ -190,7 +190,7 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
     def _find_target(self):
         """ find the XML target_elt """
-        return self.pfsense.find_vip(self.obj['interface'], self.obj['mode'], self.obj['descr'], self.obj['subnet'])
+        return self.pfsense.find_vip(self.obj['interface'], self.obj['mode'], self.obj['subnet'])
 
     def _pre_remove_target_elt(self):
         """ processing before removing elt """

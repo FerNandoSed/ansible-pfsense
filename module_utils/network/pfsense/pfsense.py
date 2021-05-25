@@ -468,7 +468,7 @@ class PFSenseModule(object):
 
         return None
 
-    def find_vip(self, interface, mode, descr, subnet):
+    def find_vip(self, interface, mode, subnet):
         """ return virtualip elt if found """
 
         if self.virtualip is None:
