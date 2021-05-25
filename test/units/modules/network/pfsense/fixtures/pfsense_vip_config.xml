@@ -271,12 +271,26 @@
 	</cert>
 	<virtualip>
 		<vip>
-			<mode>other</mode>
+			<mode>ipalias</mode>
 			<interface>wan</interface>
-			<descr><![CDATA[othrtest]]></descr>
-			<type>network</type>
-			<subnet_bits>27</subnet_bits>
+			<descr>ipaliastest</descr>
+			<type>single</type>
 			<subnet>10.10.20.30</subnet>
+			<subnet_bits>27</subnet_bits>
+			<uniqid>60aab838e3e3g</uniqid>
+		</vip>
+		<vip>
+			<interface>wan</interface>
+			<vhid>240</vhid>
+			<advskew>0</advskew>
+			<advbase>1</advbase>
+			<password>secretpassword</password>
+			<subnet>10.240.22.12</subnet>
+			<subnet_bits>32</subnet_bits>
+			<type>single</type>
+			<descr>carptest</descr>
+			<mode>carp</mode>
+			<uniqid>60aab727ddd5f</uniqid>
 		</vip>
 	</virtualip>
 	<vlans>
