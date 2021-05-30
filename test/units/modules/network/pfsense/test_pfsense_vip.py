@@ -145,3 +145,39 @@ class TestPFSenseVIPModule(TestPFSenseModule):
         vip = dict(mode='carp', subnet='10.240.22.12', interface='wan', password='secretpassword', vhid='240', state='absent')
         command = "delete vip 'wan.10.240.22.12.carp'"
         self.do_module_test(vip, command=command, delete=True)
+
+    def test_vip_update_vhid(self):
+        """ test update vhid over vip (carp)"""
+        vip = dict(mode='carp', subnet='10.240.22.12', interface='wan', password='secretpassword', vhid='24', state='present', type='single', descr='carptest')
+        command = "update vip 'wan.10.240.22.12.carp' set vhid='24'"
+        self.do_module_test(vip, command=command)
+
+    def test_vip_update_descr_carp(self):
+        """ test update vhid over vip (carp)"""
+        vip = dict(mode='carp', subnet='10.240.22.12', interface='wan', password='secretpassword', vhid='240', state='present', type='single', descr='')
+        command = "update vip 'wan.10.240.22.12.carp' set descr=''"
+        self.do_module_test(vip, command=command)
+
+    def test_vip_update_advbase(self):
+        """ test update advbase over vip (carp)"""
+        vip = dict(mode='carp', subnet='10.240.22.12', interface='wan', password='secretpassword', vhid='240', state='present', type='single', descr='carptest', advbase=10)
+        command = "update vip 'wan.10.240.22.12.carp' set advbase='10'"
+        self.do_module_test(vip, command=command)
+
+    def test_vip_update_advskew(self):
+        """ test update advbase over vip (carp)"""
+        vip = dict(mode='carp', subnet='10.240.22.12', interface='wan', password='secretpassword', vhid='240', state='present', type='single', descr='carptest', advskew=100)
+        command = "update vip 'wan.10.240.22.12.carp' set advskew='100'"
+        self.do_module_test(vip, command=command)
+
+    def test_vip_update_password(self):
+        """ test update advbase over vip (carp)"""
+        vip = dict(mode='carp', subnet='10.240.22.12', interface='wan', password='verysecretpassword', vhid='240', state='present', type='single', descr='carptest')
+        command = "update vip 'wan.10.240.22.12.carp' set password='verysecretpassword'"
+        self.do_module_test(vip, command=command)
+
+    def test_vip_update_descr_ipalias(self):
+        """ test update descr over vip (ipalis)"""
+        vip = dict(mode='ipalias', subnet='10.10.20.30', descr='ipaliastest change', interface='wan', subnet_bits=27, type='single')
+        command = "update vip 'wan.10.10.20.30.ipalias' set descr='ipaliastest change'"
+        self.do_module_test(vip, command=command)
