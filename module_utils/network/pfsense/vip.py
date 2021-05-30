@@ -176,7 +176,6 @@ class PFSenseVIPModule(PFSenseModuleBase):
 
         if changed:
             self.obj['uniqid'] = self.target_elt.find('uniqid').text
-            self._remove_target_elt()
             self.setup_vip_cmds += self._create_vip_aray()
             self.setup_vip_cmds += "interface_vip_bring_down($vip);"
             self.setup_vip_cmds += self._cmd_create()
@@ -230,4 +229,9 @@ class PFSenseVIPModule(PFSenseModuleBase):
             values += self.format_updated_cli_field(self.obj, before, 'mode', add_comma=(values), fname='mode')
             values += self.format_updated_cli_field(self.obj, before, 'subnet', add_comma=(values), fname='address')
             values += self.format_updated_cli_field(self.obj, before, 'descr', add_comma=(values))
+            if self.obj['mode'] == 'carp':
+                values += self.format_updated_cli_field(self.obj, before, 'vhid', add_comma=(values))
+                values += self.format_updated_cli_field(self.obj, before, 'advbase', add_comma=(values))
+                values += self.format_updated_cli_field(self.obj, before, 'advskew', add_comma=(values))
+                values += self.format_updated_cli_field(self.obj, before, 'password', add_comma=(values))
         return values
