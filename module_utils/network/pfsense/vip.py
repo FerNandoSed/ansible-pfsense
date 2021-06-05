@@ -50,7 +50,7 @@ class PFSenseVIPModule(PFSenseModuleBase):
         self.setup_vip_cmds = ""
 
         # get interfaces on which vips can be set
-        # function build_if_list https://github.com/pfsense/pfsense/blob/master/src/usr/local/www/firewall_virtual_ip_edit.php
+        # build_if_list https://github.com/pfsense/pfsense/blob/master/src/usr/local/www/firewall_virtual_ip_edit.php
         get_interface_cmd = (
             'require_once("/etc/inc/interfaces.inc");'
             '$list = array();'
@@ -89,10 +89,10 @@ class PFSenseVIPModule(PFSenseModuleBase):
             obj['vhid'] = str(params['vhid'])
             obj['advskew'] = str(params['advskew'])
             obj['advbase'] = str(params['advbase'])
-            obj['password'] = str(params['password'])
-        obj['subnet'] = str(params['subnet'])
+            obj['password'] = params['password']
+        obj['subnet'] = params['subnet']
         obj['subnet_bits'] = str(params['subnet_bits'])
-        obj['type'] = str(params['type'])
+        obj['type'] = params['type']
 
         obj['descr'] = params['descr']
 
@@ -107,7 +107,6 @@ class PFSenseVIPModule(PFSenseModuleBase):
         # check interface
         if params['interface'] not in self.interfaces.keys():
             if params['interface'].upper() not in self.interfaces.values():
-                # check with assign or friendly name
                 self.module.fail_json(msg='VIPs can\'t be set on interface {0}. btw, interfaces: {1}'.format(params['interface'], self.interfaces))
             else:
                 # if interface is friendly name, get real interface name
@@ -216,7 +215,7 @@ class PFSenseVIPModule(PFSenseModuleBase):
     #
     def _get_obj_name(self):
         """ return obj's name """
-        return "'{0}.{1}.{2}'".format(self.obj['interface'], self.obj['subnet'], self.obj['mode'])
+        return "'{0}-{1}-{2}'".format(self.obj['interface'], self.obj['subnet'], self.obj['mode'])
 
     def _log_fields(self, before=None):
         """ generate pseudo-CLI command fields parameters to create an obj """
